@@ -1,0 +1,12 @@
+# config.yml
+model:
+  batch_size: 64
+  num_workers: 4
+  device: xla #cuda #cpu
+  kernel_size: 11
+  padding: 1
+  num_epochs: 10
+  
+
+test:
+  image_path: /content/frog-2_ver_1.jpg

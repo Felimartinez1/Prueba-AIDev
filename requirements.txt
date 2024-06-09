@@ -2,4 +2,11 @@ requests
 beautifulsoup4
 numpy
 pandas
+matplotlib
 sklearn
+torchvision
+torch~=2.3.0
+torch_xla[tpu]~=2.3.0
+-f https://storage.googleapis.com/libtpu-releases/index.html
+pillow
+PyYAML

@@ -4,16 +4,18 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from torchvision import transforms
-import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.parallel_loader as pl
 from PIL import Image
-import matplotlib.pyplot as plt
 import os
+import yaml
 
+with open ('cifar10_config.yml', 'r') as ymlfile:
+    config = yaml.safeload(ymlfile)
+    cifar10_config = ['model']
 
 class CIFAR10Classifier:
-    def __init__(self, batch_size=64, num_workers=4):
+    def __init__(self, batch_size=cifar10_config['batch_size'], num_workers=cifar10_config['num_workers']):
         self.transform = transforms.Compose([
             transforms.Resize((32, 32)),  # CIFAR-10 images are 32x32
             transforms.ToTensor(),
@@ -29,17 +31,24 @@ class CIFAR10Classifier:
         self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
         self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
         
-        self.device = xm.xla_device()
-
+        if cifar10_config['device'] == "xla":
+            self.device = xm.xla_device()
+        elif cifar10_config["device"] == "cuda":
+            self.device = torch.device("cuda")
+        elif cifar10_config["device"] == "cpu":
+            self.device = torch.device("cpu")
+        else:
+            raise ValueError("Device is not supported in config file.")
+        
         self.model = self.create_model().to(self.device)
         self.criterion = nn.CrossEntropyLoss()
         self.optimizer = optim.Adam(self.model.parameters())
         
     def _create_model(self):
         return nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=11, padding=1),
+            nn.Conv2d(3, 64, kernel_size=cifar10_config['kernel_size'], padding=cifar10_config['padding']),
             nn.ReLU(),
-            nn.Conv2d(64, 128, kernel_size=11, padding=1),
+            nn.Conv2d(64, 128, kernel_size=cifar10_config['kernel_size'], padding=cifar10_config['padding']),
             nn.ReLU(),
             nn.MaxPool2d(2),
             nn.Flatten(),
@@ -48,7 +57,7 @@ class CIFAR10Classifier:
             nn.Linear(512, 10)
         )
     
-    def train(self, num_epochs=10):
+    def train(self, num_epochs=cifar10_config['num_epochs']):
         trainloader = pl.MpDeviceLoader(self.trainloader, self.device)
         self.model.train()
         
@@ -81,12 +90,6 @@ class CIFAR10Classifier:
         return classes[predicted.item()]
     
     def save_model(self, path='model.pth'):
-        """
-        Guarda el modelo entrenado en un archivo especificado.
-
-        Args:
-            path (str): La ruta donde se guardará el modelo. Por defecto es 'model.pth'.
-        """
         if not os.path.exists(os.path.dirname(path)):
             os.makedirs(os.path.dirname(path))
         torch.save(self.model.state_dict(), path)    
