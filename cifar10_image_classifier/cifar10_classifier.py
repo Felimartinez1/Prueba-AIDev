@@ -86,7 +86,7 @@ class CIFAR10Classifier:
         with torch.no_grad():
             outputs = self.model(image)
             _, predicted = torch.max(outputs, 1)
-        classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+        classes = tuple(cifar10_config['classes'])
         return classes[predicted.item()]
     
     def save_model(self, path='model.pth'):

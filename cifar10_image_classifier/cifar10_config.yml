@@ -6,7 +6,17 @@ model:
   kernel_size: 11
   padding: 1
   num_epochs: 10
-  
+  classes: # labels
+  - plane
+  - car
+  - bird
+  - cat
+  - deer
+  - dog
+  - frog
+  - horse
+  - ship
+  - truck
 
 test:
   image_path: /content/frog-2_ver_1.jpg
