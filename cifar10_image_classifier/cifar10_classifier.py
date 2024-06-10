@@ -2,7 +2,6 @@ import torch
 import torchvision
 import torch.nn as nn
 import torch.optim as optim
-import torch.nn.functional as F
 from torchvision import transforms
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.parallel_loader as pl
@@ -40,7 +39,7 @@ class CIFAR10Classifier:
         else:
             raise ValueError("Device is not supported in config file.")
         
-        self.model = self.create_model().to(self.device)
+        self.model = self._create_model().to(self.device)
         self.criterion = nn.CrossEntropyLoss()
         self.optimizer = optim.Adam(self.model.parameters())
         
