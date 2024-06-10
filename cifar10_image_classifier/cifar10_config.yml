@@ -7,16 +7,18 @@ model:
   padding: 1
   num_epochs: 10
   classes: # labels
-  - plane
-  - car
-  - bird
-  - cat
-  - deer
-  - dog
-  - frog
-  - horse
-  - ship
-  - truck
+    - plane
+    - car
+    - bird
+    - cat
+    - deer
+    - dog
+    - frog
+    - horse
+    - ship
+    - truck
+  model_path:
+    model/cifar10_model.pth
 
 test:
-  image_path: /content/frog-2_ver_1.jpg
+  image_path: images/frog-2_ver_1.jpg

@@ -10,8 +10,8 @@ import os
 import yaml
 
 with open ('cifar10_config.yml', 'r') as ymlfile:
-    config = yaml.safeload(ymlfile)
-    cifar10_config = ['model']
+    config = yaml.safe_load(ymlfile)
+    cifar10_config = config['model']
 
 class CIFAR10Classifier:
     def __init__(self, batch_size=cifar10_config['batch_size'], num_workers=cifar10_config['num_workers']):
@@ -94,10 +94,10 @@ class CIFAR10Classifier:
         torch.save(self.model.state_dict(), path)    
 
 if __name__ == "__main__":
-    # Ejemplo de uso
+    
     classifier = CIFAR10Classifier()
     classifier.train()
-    classifier.save_model('model\cifar10_model.pth')
+    classifier.save_model(cifar10_config['model_path'])
 
 
 
