@@ -9,45 +9,59 @@ from PIL import Image
 import os
 import yaml
 
-with open ('cifar10_config.yml', 'r') as ymlfile:
-    config = yaml.safe_load(ymlfile)
-    cifar10_config = config['model']
-
 class CIFAR10Classifier:
-    def __init__(self, batch_size=cifar10_config['batch_size'], num_workers=cifar10_config['num_workers']):
-        self.transform = transforms.Compose([
-            transforms.Resize((32, 32)),  # CIFAR-10 images are 32x32
-            transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))  # Normalize pixel values
-        ])
-        
-        self.batch_size = batch_size
-        self.num_workers = num_workers
-        
-        self.trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=self.transform)
-        self.testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=self.transform)
-        
-        self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
-        self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
-        
-        if cifar10_config['device'] == "xla":
-            self.device = xm.xla_device()
-        elif cifar10_config["device"] == "cuda":
-            self.device = torch.device("cuda")
-        elif cifar10_config["device"] == "cpu":
-            self.device = torch.device("cpu")
-        else:
-            raise ValueError("Device is not supported in config file.")
-        
+    def __init__(self, config_path='cifar10_config.yml'):
+        self.config = self._load_config(config_path)
+        self.transform = self._get_transforms()
+        self.batch_size = self.config['batch_size']
+        self.num_workers = self.config['num_workers']
+        self.device = self._get_device()
+        self.trainloader, self.testloader = self._get_dataloaders()
         self.model = self._create_model().to(self.device)
         self.criterion = nn.CrossEntropyLoss()
         self.optimizer = optim.Adam(self.model.parameters())
+    
+    def _load_config(self, config_path):
+        with open(config_path, 'r') as ymlfile:
+            config = yaml.safe_load(ymlfile)
+        return config['model']
+
+    def _get_transforms(self):
+        return transforms.Compose([
+            transforms.Resize((32, 32)),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        ])
+    
+    def _get_device(self):
+        device_config = self.config['device']
+        if device_config == "xla":
+            return xm.xla_device()
+        elif device_config == "cuda":
+            return torch.device("cuda")
+        elif device_config == "cpu":
+            return torch.device("cpu")
+        else:
+            raise ValueError("Device is not supported in config file.")
+    
+    def _get_dataloaders(self):
+        trainset = torchvision.datasets.CIFAR10(
+            root='./data', train=True, download=True, transform=self.transform)
+        testset = torchvision.datasets.CIFAR10(
+            root='./data', train=False, download=True, transform=self.transform)
         
+        trainloader = torch.utils.data.DataLoader(
+            trainset, batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers)
+        testloader = torch.utils.data.DataLoader(
+            testset, batch_size=self.batch_size, shuffle=False, num_workers=self.num_workers)
+        
+        return trainloader, testloader
+
     def _create_model(self):
         return nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=cifar10_config['kernel_size'], padding=cifar10_config['padding']),
+            nn.Conv2d(3, 64, kernel_size=self.config['kernel_size'], padding=self.config['padding']),
             nn.ReLU(),
-            nn.Conv2d(64, 128, kernel_size=cifar10_config['kernel_size'], padding=cifar10_config['padding']),
+            nn.Conv2d(64, 128, kernel_size=self.config['kernel_size'], padding=self.config['padding']),
             nn.ReLU(),
             nn.MaxPool2d(2),
             nn.Flatten(),
@@ -56,7 +70,9 @@ class CIFAR10Classifier:
             nn.Linear(512, 10)
         )
     
-    def train(self, num_epochs=cifar10_config['num_epochs']):
+    def train(self, num_epochs=None):
+        if num_epochs is None:
+            num_epochs = self.config['num_epochs']
         trainloader = pl.MpDeviceLoader(self.trainloader, self.device)
         self.model.train()
         
@@ -74,30 +90,26 @@ class CIFAR10Classifier:
                 if i % 2000 == 1999:
                     print('[%d, %5d] loss: %.3f' % (epoch + 1, i + 1, running_loss / 2000))
                     running_loss = 0.0
-            print('+ epoch')
+            print(f'Epoch {epoch + 1} completed')
         print('Finished Training')
     
     def predict_image(self, image_path):
         image = Image.open(image_path)
-        image = self.transform(image).unsqueeze(0)
-        image = image.to(self.device)
+        image = self.transform(image).unsqueeze(0).to(self.device)
         self.model.eval()
         with torch.no_grad():
             outputs = self.model(image)
             _, predicted = torch.max(outputs, 1)
-        classes = tuple(cifar10_config['classes'])
+        classes = tuple(self.config['classes'])
         return classes[predicted.item()]
     
-    def save_model(self, path='model.pth'):
-        if not os.path.exists(os.path.dirname(path)):
-            os.makedirs(os.path.dirname(path))
-        torch.save(self.model.state_dict(), path)    
+    def save_model(self, path=None):
+        if path is None:
+            path = self.config['model_path']
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        torch.save(self.model.state_dict(), path)
 
 if __name__ == "__main__":
-    
     classifier = CIFAR10Classifier()
     classifier.train()
-    classifier.save_model(cifar10_config['model_path'])
-
-
-
+    classifier.save_model()
